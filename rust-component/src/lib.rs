@@ -1,7 +1,11 @@
 #[allow(warnings)]
 mod bindings;
 
-use bindings::Guest;
+use bindings::{register, Guest, Simple};
+
+struct ItemA {
+    name: u32,
+}
 
 struct Component;
 
@@ -13,6 +17,10 @@ impl Guest for Component {
     
     fn test() -> bindings::Customer {
         bindings::Customer { id: 10, name: String::from("cc") }
+    }
+    
+    fn init() {
+        register(Simple);
     }
 }
 
