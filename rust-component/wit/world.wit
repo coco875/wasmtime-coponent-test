@@ -1,28 +1,17 @@
 package component:rust-component;
 
 world example {
-    record customer {
-        id: u64,
-        name: string,
-    }
-
-    export add: func(x: s32, y: s32) -> s32;
-    export test: func() -> customer;
     export init: func();
-    import register: func(f:simple);
 
-    resource simple {
-        f: func() -> s32;
+    record actor {
+        mod-id: string,
+        id: string,
+        x: f32,
+        y: f32,
     }
 
-    resource register-thing {
-        call: func()-> thing;
-    }
-    
-    resource thing {
-        constructor();
-        get-a: func() -> u32;
-        set-a: func(operation: u32);
-        execute: func() -> u32;
-    }
+    import init-actor: func(a: actor);
+    export actor-init: func(a: actor)->bool;
+    export actor-update: func(a: actor)->bool;
+    export actor-render: func(a: actor)->bool;
 }

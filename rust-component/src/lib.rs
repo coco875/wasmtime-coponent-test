@@ -1,26 +1,57 @@
 #[allow(warnings)]
 mod bindings;
 
-use bindings::{register, Guest, Simple};
-
-struct ItemA {
-    name: u32,
-}
+use bindings::{init_actor, Guest};
 
 struct Component;
 
+static MOD_ID: &str = "test2";
+
+impl bindings::Actor {
+    fn init(&self) {
+        init_actor(self);
+    }
+}
+
 impl Guest for Component {
-    /// Say hello!
-    fn add(a:i32, b:i32) -> i32 {
-        a+b
-    }
-    
-    fn test() -> bindings::Customer {
-        bindings::Customer { id: 10, name: String::from("cc") }
-    }
-    
     fn init() {
-        register(Simple);
+        println!("init");
+        let actor = bindings::Actor {
+            mod_id: "test2".to_owned(),
+            id: "test".to_owned(),
+            x: 0.0,
+            y: 0.0,
+        };
+        actor.init();
+    }
+
+    fn actor_update(a: bindings::Actor) -> bool {
+        if a.id == "test" {
+            println!("update test");
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    fn actor_render(a: bindings::Actor) -> bool {
+        if a.id == "test" {
+            println!("render test");
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    fn actor_init(mut a: bindings::Actor) -> bool {
+        if a.id == "test" {
+            println!("init test");
+            a.x = 10.0;
+            a.y = 10.0;
+        } else {
+            return false;
+        }
+        return true;
     }
 }
 

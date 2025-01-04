@@ -1,75 +1,213 @@
-use std::error::Error;
-use component::ResourceTable;
-// use wasi_common::sync::WasiCtxBuilder;
+mod state;
+use component::{Resource, ResourceTableError};
+use spaghettikart::module::iactor::{self, HostActor};
+use state::MyState;
+use std::{collections::HashMap, error::Error, hash::BuildHasherDefault};
+use twox_hash::XxHash64;
 use wasmtime::*;
-use wasmtime_wasi::{preview1::WasiP1Ctx, WasiCtx, WasiCtxBuilder, WasiView};
-use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
 
-struct MyState {
-    ctx: WasiCtx,
-    http_ctx: WasiHttpCtx,
-    table: ResourceTable,
+#[derive(Debug)]
+pub struct MyActor {
+    mod_id: String,
+    id: String,
+    x: f32,
+    y: f32,
 }
 
-impl WasiHttpView for MyState {
-    fn ctx(&mut self) -> &mut WasiHttpCtx { &mut self.http_ctx }
-    fn table(&mut self) -> &mut ResourceTable { &mut self.table }
+component::bindgen!({
+    path: "wit",
+
+    with: {
+        "spaghettikart:module/iactor/actor": MyActor,
+    },
+
+    trappable_imports: true,
+});
+
+static mut LOADER: Option<Loader> = None;
+
+pub struct Loader {
+    mods: HashMap<String, ModWorld, BuildHasherDefault<XxHash64>>,
+    store: Store<MyState>,
 }
 
-impl WasiView for MyState {
-    fn ctx(&mut self) -> &mut WasiCtx { &mut self.ctx }
-    fn table(&mut self) -> &mut ResourceTable { &mut self.table }
-}
+impl Loader {
+    pub fn init(engine: &Engine) {
+        let wasi_ctx = MyState::new();
+        let store = Store::new(engine, wasi_ctx);
+        unsafe {
+            LOADER = Some(Loader {
+                mods: HashMap::default(),
+                store,
+            })
+        };
+    }
 
-impl MyState {
-    fn new() -> MyState {
-        let mut wasi = WasiCtxBuilder::new();
+    pub fn load(
+        &mut self,
+        path: &str,
+        engine: &Engine,
+        linker: &component::Linker<MyState>,
+    ) -> Result<(), Box<dyn Error>> {
+        println!("load {}", path);
+        let bytes = std::fs::read(path.to_owned() + ".wasm")?;
+        let component = component::Component::new(engine, bytes)?;
+        let instance = ModWorld::instantiate(&mut self.store, &component, linker)?;
+        self.mods.insert(path.to_string(), instance.into());
+        Ok(())
+    }
 
-        MyState {
-            ctx: wasi.build(),
-            table: ResourceTable::new(),
-            http_ctx: WasiHttpCtx::new(),
-        }
+    pub fn get_loader() -> &'static mut Loader {
+        unsafe { LOADER.as_mut().unwrap() }
+    }
+
+    pub fn get_store() -> &'static mut Store<MyState> {
+        unsafe { &mut LOADER.as_mut().unwrap().store }
+    }
+
+    pub fn new_actor(
+        &mut self,
+        mod_id: String,
+        id: String,
+    ) -> Result<Resource<Actor>, wasmtime::Error> {
+        let actor = self.store.data_mut().new(mod_id, id)?;
+        let struct_actor = self.store.data_mut().table.get_mut(&actor)?;
+        self.mods[&struct_actor.mod_id].call_actor_init(
+            &mut self.store,
+            Resource::new_borrow(actor.rep()),
+            0.0,
+            0.0,
+        )?;
+        Ok(actor)
+    }
+
+    pub fn actor_struct(
+        &mut self,
+        actor: Resource<Actor>,
+    ) -> Result<&mut MyActor, ResourceTableError> {
+        self.store.data_mut().table.get_mut(&actor)
     }
 }
 
-component::bindgen!();
+impl ModWorldImports for MyState {
+    fn init_actor(&mut self, actor: Resource<Actor>) -> std::result::Result<(), wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let loader = Loader::get_loader();
+        let store = Loader::get_store();
+        let struct_actor = self.table.get_mut(&actor)?;
+        loader.mods[&struct_actor.mod_id].call_actor_init(store, actor, 0.0, 0.0)?;
+        Ok(())
+    }
+}
+
+impl HostActor for MyState {
+    fn new(&mut self, mod_id: String, id: String) -> Result<Resource<Actor>, wasmtime::Error> {
+        let id = self.table.push(Actor {
+            mod_id,
+            id,
+            x: 0.0,
+            y: 0.0,
+        })?;
+        Ok(id)
+    }
+
+    fn outside_init(
+        &mut self,
+        actor: Resource<Actor>,
+        x: f32,
+        y: f32,
+    ) -> Result<(), wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let loader = Loader::get_loader();
+        let store = Loader::get_store();
+        let struct_actor = self.table.get_mut(&actor)?;
+        println!("outside_init");
+        loader.mods[&struct_actor.mod_id].call_actor_init(store, actor, x, y)?;
+        Ok(())
+    }
+
+    fn update(&mut self, actor: Resource<Actor>) -> Result<(), wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let loader = Loader::get_loader();
+        let store = Loader::get_store();
+        let struct_actor = self.table.get_mut(&actor)?;
+        loader.mods[&struct_actor.mod_id].call_actor_update(store, actor)?;
+        Ok(())
+    }
+    fn render(&mut self, actor: Resource<Actor>) -> Result<(), wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let loader = Loader::get_loader();
+        let store = Loader::get_store();
+        let struct_actor = self.table.get_mut(&actor)?;
+        loader.mods[&struct_actor.mod_id].call_actor_render(store, actor)?;
+        Ok(())
+    }
+    fn get_mod_id(&mut self, actor: Resource<Actor>) -> Result<String, wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let struct_actor = self.table.get_mut(&actor)?;
+        Ok(struct_actor.mod_id.clone())
+    }
+    fn get_id(&mut self, actor: Resource<Actor>) -> Result<String, wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let struct_actor = self.table.get_mut(&actor)?;
+        Ok(struct_actor.id.clone())
+    }
+    fn get_x(&mut self, actor: Resource<Actor>) -> Result<f32, wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let struct_actor = self.table.get_mut(&actor)?;
+        Ok(struct_actor.x)
+    }
+    fn set_x(&mut self, actor: Resource<Actor>, x: f32) -> Result<(), wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let struct_actor = self.table.get_mut(&actor)?;
+        struct_actor.x = x;
+        Ok(())
+    }
+    fn get_y(&mut self, actor: Resource<Actor>) -> Result<f32, wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let struct_actor = self.table.get_mut(&actor)?;
+        Ok(struct_actor.y)
+    }
+    fn set_y(&mut self, actor: Resource<Actor>, y: f32) -> Result<(), wasmtime::Error> {
+        debug_assert!(!actor.owned());
+        let struct_actor = self.table.get_mut(&actor)?;
+        struct_actor.y = y;
+        Ok(())
+    }
+    fn drop(&mut self, actor: Resource<Actor>) -> Result<(), wasmtime::Error> {
+        debug_assert!(actor.owned());
+        let _actor = self.table.delete(actor)?;
+        // ... custom destruction logic here if necessary, otherwise
+        // a `Drop for MyLogger` would also work.
+        Ok(())
+    }
+}
+
+impl iactor::Host for MyState {}
 
 fn main() -> Result<(), Box<dyn Error>> {
     // An engine stores and configures global compilation settings like
     // optimization level, enabled wasm features, etc.
     let mut config = Config::new();
+    config.debug_info(true);
     let engine = Engine::new(&config)?;
     let mut linker = component::Linker::<MyState>::new(&engine);
     wasmtime_wasi::add_to_linker_sync(&mut linker)?;
     wasmtime_wasi_http::add_only_http_to_linker_sync(&mut linker)?;
+    ModWorld::add_to_linker(&mut linker, |state: &mut MyState| state)?;
 
-    let mut wasi = WasiCtxBuilder::new();
-
-    let wasi_ctx = MyState {
-            ctx: wasi.build(),
-            table: ResourceTable::new(),
-            http_ctx: WasiHttpCtx::new(),
-        };
-    let mut store = Store::new(&engine, wasi_ctx);
-
-    println!("load component");
-    let bytes = std::fs::read("js.wasm")?;
-    let component = component::Component::new(&engine, bytes)?;
+    Loader::init(&engine);
+    let loader = Loader::get_loader();
+    let store = Loader::get_store();
 
     println!("initialise component");
-    let instance = Example::instantiate(&mut store, &component, &linker)?;
 
-    // The `Instance` gives us access to various exported functions and items,
-    // which we access here to pull out our `answer` exported function and
-    // run it.
+    loader.load("test1", &engine, &linker)?;
+    loader.load("test2", &engine, &linker)?;
 
-    // And finally we can call our function! Note that the error propagation
-    // with `?` is done to handle the case where the wasm function traps.
-    let mut result = instance.call_add(&mut store, 1, 2)?;
-    println!("Answer: {:?}", result);
-
-    let mut result = instance.call_test(&mut store)?;
-    println!("Answer: {:?}", result);
+    loader.mods["test2"].call_init(&mut *store)?;
+    let actor = loader.new_actor("test1".to_string(), "test".to_string())?;
+    let actor = loader.actor_struct(actor)?;
+    println!("actor: {:?}", actor);
     Ok(())
 }
