@@ -1,0 +1,11 @@
+# Build artifacts
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+
+# Output
+*.wasm
+*.js

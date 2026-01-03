@@ -1,0 +1,30 @@
+package spaghettikart:module;
+
+world mod-world {
+    export init: func();
+
+    import iactor;
+    use iactor.{actor};
+
+    import init-actor: func(a: borrow<actor>);
+    export actor-init: func(a: borrow<actor>, x: f32, y: f32);
+    export actor-update: func(a: borrow<actor>);
+    export actor-render: func(a: borrow<actor>);
+}
+
+interface iactor {
+    resource actor {
+        constructor(mod-id: string, id: string);
+        outside-init: func(x: f32, y: f32);
+        update: func();
+        render: func();
+
+        // getter/setter
+        get-mod-id: func()->string;
+        get-id: func()->string;
+        get-x: func()->f32;
+        set-x: func(x: f32);
+        get-y: func()->f32;
+        set-y: func(y: f32);
+    }
+}
