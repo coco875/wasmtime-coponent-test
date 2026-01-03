@@ -198,16 +198,79 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Loader::init(&engine);
     let loader = Loader::get_loader();
-    let store = Loader::get_store();
 
-    println!("initialise component");
+    println!("=== Discovering wasm components ===\n");
 
-    loader.load("test1", &engine, &linker)?;
-    loader.load("test2", &engine, &linker)?;
+    // Discover all .wasm files in current directory
+    let mut components: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(".")? {
+        let entry = entry?;
+        let path = entry.path();
+        if let Some(ext) = path.extension() {
+            if ext == "wasm" {
+                if let Some(stem) = path.file_stem() {
+                    if let Some(name) = stem.to_str() {
+                        components.push(name.to_string());
+                    }
+                }
+            }
+        }
+    }
 
-    loader.mods["test2"].call_init(&mut *store)?;
-    let actor = loader.new_actor("test1".to_string(), "test".to_string())?;
-    let actor = loader.actor_struct(actor)?;
-    println!("actor: {:?}", actor);
+    // Sort for consistent ordering
+    components.sort();
+
+    println!("Found {} wasm files: {:?}\n", components.len(), components);
+
+    println!("=== Loading all components ===\n");
+
+    // Load all components
+    for component in &components {
+        match loader.load(component, &engine, &linker) {
+            Ok(_) => println!("✓ Loaded: {}", component),
+            Err(e) => println!("✗ Failed to load {}: {}", component, e),
+        }
+    }
+
+    println!("\n=== Testing components ===\n");
+
+    // Test each loaded component
+    for component in &components {
+        if !loader.mods.contains_key(component) {
+            println!("⚠ Skipping {} (not loaded)", component);
+            continue;
+        }
+
+        println!("--- Testing {} ---", component);
+        
+        // Call init on the component
+        let store = Loader::get_store();
+        match loader.mods[component].call_init(&mut *store) {
+            Ok(_) => println!("  ✓ init() called successfully"),
+            Err(e) => println!("  ✗ init() failed: {}", e),
+        }
+
+        // Create an actor from this component
+        let actor_id = format!("actor-from-{}", component);
+        match loader.new_actor(component.to_string(), actor_id.clone()) {
+            Ok(actor) => {
+                println!("  ✓ Actor created: {}", actor_id);
+                
+                // Get actor struct and display info
+                match loader.actor_struct(actor) {
+                    Ok(actor_struct) => {
+                        println!("    Actor details: {:?}", actor_struct);
+                    }
+                    Err(e) => println!("    ✗ Failed to get actor struct: {}", e),
+                }
+            }
+            Err(e) => println!("  ✗ Failed to create actor: {}", e),
+        }
+
+        println!();
+    }
+
+    println!("=== All tests completed ===");
     Ok(())
 }
+

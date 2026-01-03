@@ -19,35 +19,25 @@ impl iactor::Actor {
 
 impl Guest for Component {
     fn init() {
+        println!("init {}", MOD_ID);
         let actor = iactor::Actor::new("test1", "test");
         actor.init(0.0, 0.0);
     }
 
     fn actor_init(a: &iactor::Actor, x: f32, y: f32) {
-        if a.get_id() == "test" {
-            println!("init test from {}", MOD_ID);
-            a.set_x(x);
-            a.set_y(y);
-        } else {
-            println!("failed to init actor");
-        }
+        println!("actor_init {} from {}", a.get_id(), MOD_ID);
+        a.set_x(x);
+        a.set_y(y);
     }
 
     fn actor_update(a: &iactor::Actor) {
-        if a.get_id() == "test" {
-            println!("update test");
-        } else {
-            println!("failed to update actor");
-        }
+        println!("actor_update {} from {}", a.get_id(), MOD_ID);
     }
 
     fn actor_render(a: &iactor::Actor) {
-        if a.get_id() == "test" {
-            println!("render test");
-        } else {
-            println!("failed to render actor");
-        }
+        println!("actor_render {} from {}", a.get_id(), MOD_ID);
     }
 }
 
 bindings::export!(Component with_types_in bindings);
+

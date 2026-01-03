@@ -1,1 +1,13 @@
+# Generated wasm
+*.wasm
+
+# Python cache
+__pycache__/
 *.pyc
+
+# componentize-py generated bindings
+wit_world/
+componentize_py_async_support/
+componentize_py_runtime.pyi
+componentize_py_types.py
+poll_loop.py

@@ -77,7 +77,7 @@ build_js_component() {
     fi
     
     # Build with jco
-    jco componentize app.js --wit world.wit --world-name example --out "${output_name}.wasm"
+    jco componentize app.js --wit world.wit --world-name mod-world --out "${output_name}.wasm"
     
     if [ -f "${output_name}.wasm" ]; then
         mv "${output_name}.wasm" "$ROOT_DIR/loader/${output_name}.wasm"
@@ -109,7 +109,7 @@ build_python_component() {
     fi
     
     # Build with componentize-py
-    componentize-py -d world.wit -w example componentize app -o "${output_name}.wasm"
+    componentize-py -d world.wit -w mod-world componentize app -o "${output_name}.wasm"
     
     if [ -f "${output_name}.wasm" ]; then
         mv "${output_name}.wasm" "$ROOT_DIR/loader/${output_name}.wasm"
