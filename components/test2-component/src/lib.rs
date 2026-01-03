@@ -1,11 +1,11 @@
 #[allow(warnings)]
 mod bindings;
 
-use bindings::{init_actor, spaghettikart::module::iactor, Guest};
+use bindings::{spaghettikart::module::iactor, Guest};
 
 struct Component;
 
-static MOD_ID: &str = "test1";
+static MOD_ID: &str = "test2";
 
 impl iactor::Actor {
     fn init(&self, x: f32, y: f32) {
@@ -19,15 +19,15 @@ impl iactor::Actor {
 
 impl Guest for Component {
     fn init() {
-        let actor = iactor::Actor::new("test2", "test");
+        let actor = iactor::Actor::new("test1", "test");
         actor.init(0.0, 0.0);
     }
 
     fn actor_init(a: &iactor::Actor, x: f32, y: f32) {
         if a.get_id() == "test" {
             println!("init test from {}", MOD_ID);
-            a.set_x(x + 5.0);
-            a.set_y(y + 5.0);
+            a.set_x(x);
+            a.set_y(y);
         } else {
             println!("failed to init actor");
         }
